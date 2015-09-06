@@ -1,18 +1,14 @@
 package rules
 
-import "net"
+import (
+	"net"
 
-type Protocol uint8
-
-const (
-	Invalid Protocol = iota
-	TCP
-	UDP
+	"github.com/fd/switchboard/pkg/protocols"
 )
 
 type Rule struct {
 	ID       string
-	Protocol Protocol
+	Protocol protocols.Protocol
 
 	SrcHostID string
 	SrcPort   uint16

@@ -6,10 +6,13 @@ import (
 	"sync"
 
 	"github.com/dustinkirkland/golang-petname"
+	"github.com/fd/switchboard/pkg/ports"
 	"github.com/satori/go.uuid"
 )
 
 type Controller struct {
+	ports *ports.Mapper
+
 	mtx   sync.Mutex
 	hosts map[string]*Host
 
@@ -17,8 +20,9 @@ type Controller struct {
 	table    *Table
 }
 
-func NewController() *Controller {
+func NewController(ports *ports.Mapper) *Controller {
 	return &Controller{
+		ports: ports,
 		hosts: make(map[string]*Host),
 		table: &Table{},
 	}
@@ -115,6 +119,8 @@ func (c *Controller) RemoveHost(id string) error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
+	c.ports.ForgetHost(id)
+
 	host := c.lookupByNameOrID(id)
 	delete(c.hosts, host.ID)
 	c.updateTable()
@@ -155,6 +161,10 @@ func (c *Controller) HostSetState(id string, up bool) error {
 	host := c.lookupByNameOrID(id)
 	if host == nil {
 		return errors.New("host not found")
+	}
+
+	if !up {
+		c.ports.ForgetHost(id)
 	}
 
 	host.Up = up

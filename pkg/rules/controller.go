@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/fd/switchboard/pkg/ports"
 	"github.com/satori/go.uuid"
 )
 
 type Controller struct {
+	ports *ports.Mapper
+
 	mtx   sync.Mutex
 	rules map[string]Rule
 
@@ -16,8 +19,9 @@ type Controller struct {
 	table    *Table
 }
 
-func NewController() *Controller {
+func NewController(ports *ports.Mapper) *Controller {
 	return &Controller{
+		ports: ports,
 		rules: make(map[string]Rule),
 		table: &Table{},
 	}
@@ -38,7 +42,7 @@ func (c *Controller) AddRule(rule Rule) error {
 	if rule.ID == "" {
 		rule.ID = uuid.NewV4().String()
 	}
-	if rule.Protocol == Invalid {
+	if !rule.Protocol.Valid() {
 		return errors.New("protocol must be set")
 	}
 	if rule.SrcHostID == "" {
@@ -55,29 +59,52 @@ func (c *Controller) AddRule(rule Rule) error {
 		return fmt.Errorf("a rule already exists for %s:%s:%d", rule.SrcHostID, rule.Protocol, rule.SrcPort)
 	}
 
+	_, err := c.ports.Allocate(rule.SrcHostID, rule.Protocol, rule.SrcPort)
+	if err != nil {
+		return err
+	}
+
 	c.rules[rule.ID] = rule
 	c.updateTable()
 	return nil
 }
 
-func (c *Controller) RemoveRule(id string) {
+func (c *Controller) RemoveRule(id string) error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
+	rule, found := c.rules[id]
+	if !found {
+		return nil
+	}
+
+	err := c.ports.Release(rule.SrcHostID, rule.Protocol, rule.SrcPort)
+	if err != nil {
+		return err
+	}
+
 	delete(c.rules, id)
 	c.updateTable()
+	return nil
 }
 
-func (c *Controller) RemoveRulesForHost(hostID string) {
+func (c *Controller) RemoveRulesForHost(hostID string) error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	for id, rule := range c.rules {
 		if rule.SrcHostID == hostID {
+
+			err := c.ports.Release(rule.SrcHostID, rule.Protocol, rule.SrcPort)
+			if err != nil {
+				return err
+			}
+
 			delete(c.rules, id)
 		}
 	}
 	c.updateTable()
+	return nil
 }
 
 func (c *Controller) updateTable() {

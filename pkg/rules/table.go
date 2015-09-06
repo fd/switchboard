@@ -5,6 +5,8 @@ import (
 	"hash/fnv"
 	"io"
 	"sort"
+
+	"github.com/fd/switchboard/pkg/protocols"
 )
 
 type Table struct {
@@ -49,7 +51,7 @@ func (s sortedByID) Len() int           { return len(s) }
 func (s sortedByID) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s sortedByID) Less(i, j int) bool { return s[i].id < s[j].id }
 
-func (tab *Table) Lookup(proto Protocol, hostID string, port uint16) (Rule, bool) {
+func (tab *Table) Lookup(proto protocols.Protocol, hostID string, port uint16) (Rule, bool) {
 	var sum = fnv.New64a()
 	var buf [2]byte
 	sum.Reset()
