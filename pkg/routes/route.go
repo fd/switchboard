@@ -2,6 +2,7 @@ package routes
 
 import (
 	"bytes"
+	"fmt"
 	"net"
 	"time"
 
@@ -12,23 +13,27 @@ type Route struct {
 	Protocol protocols.Protocol
 	HostID   string
 
-	Inbound struct {
-		SrcIP   net.IP
-		SrcPort uint16
-
-		DstIP   net.IP
-		DstPort uint16
-	}
-
-	Outbound struct {
-		SrcIP   net.IP
-		SrcPort uint16
-
-		DstIP   net.IP
-		DstPort uint16
-	}
+	Inbound  Stream
+	Outbound Stream
 
 	flow *Flow
+}
+
+type Stream struct {
+	SrcIP   net.IP
+	SrcPort uint16
+
+	DstIP   net.IP
+	DstPort uint16
+}
+
+func (r *Route) String() string {
+	return fmt.Sprintf("Route{%s, %s, (%s:%d -> %s:%d) => (%s:%d -> %s:%d)}",
+		r.HostID, r.Protocol,
+		r.Inbound.SrcIP, r.Inbound.SrcPort,
+		r.Inbound.DstIP, r.Inbound.DstPort,
+		r.Outbound.SrcIP, r.Outbound.SrcPort,
+		r.Outbound.DstIP, r.Outbound.DstPort)
 }
 
 func (r *Route) SetInboundSource(ip net.IP, port uint16) {
@@ -93,6 +98,7 @@ func (r *Route) reverse() *Route {
 
 	reverse := &Route{}
 	reverse.Protocol = r.Protocol
+	reverse.HostID = r.HostID
 
 	reverse.SetInboundSource(r.Outbound.DstIP, r.Outbound.DstPort)
 	reverse.SetInboundDestination(r.Outbound.SrcIP, r.Outbound.SrcPort)

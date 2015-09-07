@@ -70,7 +70,7 @@ func (vnet *VNET) handleICMPv4EchoRequest(pkt *Packet) {
 		log.Printf("ICMPv4: DST: %s (down)\n", pkt.IPv4.DstIP)
 		return
 	}
-	if host.IPv4 == nil {
+	if len(host.IPv4Addrs) == 0 {
 		log.Printf("ICMPv4: DST: %s (unknown)\n", pkt.IPv4.DstIP)
 		return
 	}
@@ -89,7 +89,7 @@ func (vnet *VNET) handleICMPv4EchoRequest(pkt *Packet) {
 			EthernetType: layers.EthernetTypeIPv4,
 		},
 		&layers.IPv4{
-			SrcIP:    host.IPv4,
+			SrcIP:    pkt.IPv4.DstIP,
 			DstIP:    pkt.IPv4.SrcIP,
 			Version:  4,
 			Protocol: layers.IPProtocolICMPv4,

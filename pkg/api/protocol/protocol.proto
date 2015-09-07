@@ -1,0 +1,37 @@
+syntax = "proto3";
+package protocol;
+
+service Hosts {
+  rpc List(HostListReq) returns (HostListRes) {}
+  rpc Add(HostAddReq) returns (HostAddRes) {}
+  rpc Remove(HostRemoveReq) returns (HostRemoveRes) {}
+}
+
+message HostListReq {}
+message HostListRes {
+  repeated Host hosts = 1;
+}
+
+message HostAddReq {
+  string name = 1;
+  bool allocateIPv4 = 2;
+}
+message HostAddRes {
+  Host host = 1;
+}
+
+message HostRemoveReq {
+  string id = 1;
+}
+message HostRemoveRes {}
+
+message Host {
+  string id = 1;
+  string name = 2;
+
+  string mac = 3;
+  repeated string ipv4 = 4;
+  repeated string ipv6 = 5;
+
+  bool up = 6;
+}

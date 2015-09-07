@@ -50,7 +50,7 @@ func (vnet *VNET) dispatchDHCP(ctx context.Context) chan<- *Packet {
 				if !controller.Up {
 					continue
 				}
-				if controller.IPv4 != nil {
+				if len(controller.IPv4Addrs) > 0 {
 					// TODO renew
 					continue
 				}
@@ -67,6 +67,10 @@ func (vnet *VNET) dispatchDHCP(ctx context.Context) chan<- *Packet {
 }
 
 func (vnet *VNET) handleDHCP(pkt *Packet) {
+	if pkt == nil || pkt.Eth == nil {
+		return
+	}
+
 	defer pkt.Release()
 
 	tab := vnet.hosts.GetTable()
@@ -208,11 +212,14 @@ func (vnet *VNET) handleDHCPAck(pkt *Packet, ack *dhcp.Message, host *hosts.Host
 	if ack.YourIPAddress == nil {
 		return
 	}
-	if bytes.Equal(host.IPv4, ack.YourIPAddress) {
-		return
+	for _, ip := range host.IPv4Addrs {
+		if bytes.Equal(ip, ack.YourIPAddress) {
+			return
+		}
 	}
 
-	vnet.hosts.HostSetIPv4(host.ID, CloneIP(ack.YourIPAddress))
+	vnet.hosts.HostAddIPv4(host.ID, CloneIP(ack.YourIPAddress))
+	vnet.hosts.HostAddIPv4(host.ID, net.IPv4(172, 18, 0, 1))
 	log.Printf("DCHP leased: %s", ack.YourIPAddress)
 
 	// sudo route -n add -net 172.18.0.0/16 192.168.128.7

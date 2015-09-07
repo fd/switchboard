@@ -5,14 +5,20 @@ import (
 	"fmt"
 	"net"
 	"sort"
+	"strings"
 )
 
 type Table struct {
 	id   []*Host
 	name []*Host
 	mac  []*Host
-	ipv4 []*Host
-	ipv6 []*Host
+	ipv4 []ipEntry
+	ipv6 []ipEntry
+}
+
+type ipEntry struct {
+	ip   net.IP
+	host *Host
 }
 
 func buildTable(hosts []*Host) *Table {
@@ -20,15 +26,22 @@ func buildTable(hosts []*Host) *Table {
 		id:   make([]*Host, len(hosts)),
 		name: make([]*Host, len(hosts)),
 		mac:  make([]*Host, len(hosts)),
-		ipv4: make([]*Host, len(hosts)),
-		ipv6: make([]*Host, len(hosts)),
+		ipv4: make([]ipEntry, 0, len(hosts)*2),
+		ipv6: make([]ipEntry, 0, len(hosts)*2),
 	}
 
 	copy(tab.id, hosts)
 	copy(tab.name, hosts)
 	copy(tab.mac, hosts)
-	copy(tab.ipv4, hosts)
-	copy(tab.ipv6, hosts)
+
+	for _, host := range hosts {
+		for _, ip := range host.IPv4Addrs {
+			tab.ipv4 = append(tab.ipv4, ipEntry{ip, host})
+		}
+		for _, ip := range host.IPv6Addrs {
+			tab.ipv6 = append(tab.ipv6, ipEntry{ip, host})
+		}
+	}
 
 	sort.Sort(sortedByID(tab.id))
 	sort.Sort(sortedByName(tab.name))
@@ -61,6 +74,11 @@ func (t *Table) LookupByID(id string) *Host {
 
 	if host == nil {
 		return nil
+	}
+
+	// Allow short ID
+	if len(id) >= 8 && strings.HasPrefix(host.ID, id) {
+		id = host.ID
 	}
 
 	if host.ID != id {
@@ -119,19 +137,19 @@ func (t *Table) LookupByIPv4(ip net.IP) *Host {
 		return nil
 	}
 
-	host := lookup(t.ipv4, func(h *Host) bool {
-		return bytes.Compare(h.IPv4, ip) >= 0
+	entry := lookupIP(t.ipv4, func(e ipEntry) bool {
+		return bytes.Compare(e.ip, ip) >= 0
 	})
 
-	if host == nil {
+	if entry.host == nil {
 		return nil
 	}
 
-	if !bytes.Equal(host.IPv4, ip) {
+	if !bytes.Equal(entry.ip, ip) {
 		return nil
 	}
 
-	return host
+	return entry.host
 }
 
 // LookupByIPv6 returns a host for a IPv6 address
@@ -144,19 +162,19 @@ func (t *Table) LookupByIPv6(ip net.IP) *Host {
 		return nil
 	}
 
-	host := lookup(t.ipv6, func(h *Host) bool {
-		return bytes.Compare(h.IPv6, ip) >= 0
+	entry := lookupIP(t.ipv6, func(e ipEntry) bool {
+		return bytes.Compare(e.ip, ip) >= 0
 	})
 
-	if host == nil {
+	if entry.host == nil {
 		return nil
 	}
 
-	if !bytes.Equal(host.IPv6, ip) {
+	if !bytes.Equal(entry.ip, ip) {
 		return nil
 	}
 
-	return host
+	return entry.host
 }
 
 func (t *Table) Dump() {
@@ -174,6 +192,20 @@ func lookup(s []*Host, f func(h *Host) bool) *Host {
 
 	if index >= length {
 		return nil
+	}
+
+	return s[index]
+}
+
+func lookupIP(s []ipEntry, f func(h ipEntry) bool) ipEntry {
+	length := len(s)
+
+	index := sort.Search(length, func(idx int) bool {
+		return f(s[idx])
+	})
+
+	if index >= length {
+		return ipEntry{}
 	}
 
 	return s[index]
@@ -197,14 +229,14 @@ func (s sortedByMAC) Len() int           { return len(s) }
 func (s sortedByMAC) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s sortedByMAC) Less(i, j int) bool { return bytes.Compare(s[i].MAC, s[j].MAC) < 0 }
 
-type sortedByIPv4 []*Host
+type sortedByIPv4 []ipEntry
 
 func (s sortedByIPv4) Len() int           { return len(s) }
 func (s sortedByIPv4) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s sortedByIPv4) Less(i, j int) bool { return bytes.Compare(s[i].IPv4, s[j].IPv4) < 0 }
+func (s sortedByIPv4) Less(i, j int) bool { return bytes.Compare(s[i].ip, s[j].ip) < 0 }
 
-type sortedByIPv6 []*Host
+type sortedByIPv6 []ipEntry
 
 func (s sortedByIPv6) Len() int           { return len(s) }
 func (s sortedByIPv6) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s sortedByIPv6) Less(i, j int) bool { return bytes.Compare(s[i].IPv6, s[j].IPv6) < 0 }
+func (s sortedByIPv6) Less(i, j int) bool { return bytes.Compare(s[i].ip, s[j].ip) < 0 }

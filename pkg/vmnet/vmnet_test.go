@@ -14,7 +14,7 @@ import (
 func TestOpenClose(t *testing.T) {
 	wg := &sync.WaitGroup{}
 
-	iface, err := Open()
+	iface, err := Open("")
 	if err != nil {
 		t.Fatal(err)
 	}

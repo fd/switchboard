@@ -2,6 +2,7 @@ package hosts
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 
@@ -51,11 +52,15 @@ func (c *Controller) AddHost(host *Host) (*Host, error) {
 	if host.MAC != nil && tab.LookupByMAC(host.MAC) != nil {
 		return nil, errors.New("host MAC is already in use")
 	}
-	if host.IPv4 != nil && tab.LookupByIPv4(host.IPv4) != nil {
-		return nil, errors.New("host IPv4 is already in use")
+	for _, ip := range host.IPv4Addrs {
+		if tab.LookupByIPv4(ip) != nil {
+			return nil, fmt.Errorf("host IPv4 %s is already in use", ip)
+		}
 	}
-	if host.IPv6 != nil && tab.LookupByIPv6(host.IPv6) != nil {
-		return nil, errors.New("host IPv6 is already in use")
+	for _, ip := range host.IPv6Addrs {
+		if tab.LookupByIPv6(ip) != nil {
+			return nil, fmt.Errorf("host IPv6 %s is already in use", ip)
+		}
 	}
 
 	if host.ID == "" {
@@ -88,25 +93,25 @@ func (c *Controller) AddHost(host *Host) (*Host, error) {
 			}
 		}
 	}
-	if host.IPv6 == nil {
+	if len(host.IPv6Addrs) == 0 {
 		for {
 			ip, err := generateIPv6(host.Local)
 			if err != nil {
 				return nil, err
 			}
 			if tab.LookupByIPv6(ip) == nil {
-				host.IPv6 = ip
+				host.IPv6Addrs = append(host.IPv6Addrs, ip)
 				break
 			}
 		}
 	}
 
-	if host.IPv4 != nil {
-		host.IPv4 = host.IPv4.To4()
+	for i, ip := range host.IPv4Addrs {
+		host.IPv4Addrs[i] = ip.To4()
 	}
 
-	if host.IPv6 != nil {
-		host.IPv6 = host.IPv6.To16()
+	for i, ip := range host.IPv6Addrs {
+		host.IPv6Addrs[i] = ip.To16()
 	}
 
 	c.hosts[host.ID] = host
@@ -127,7 +132,7 @@ func (c *Controller) RemoveHost(id string) error {
 	return nil
 }
 
-func (c *Controller) HostSetIPv4(id string, ip net.IP) error {
+func (c *Controller) HostAddIPv4(id string, ip net.IP) error {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -144,9 +149,9 @@ func (c *Controller) HostSetIPv4(id string, ip net.IP) error {
 	}
 
 	if ip != nil {
-		host.IPv4 = ip.To4()
+		host.IPv4Addrs = append(host.IPv4Addrs, ip.To4())
 	} else {
-		host.IPv4 = nil
+		// host.IPv4 = nil
 	}
 
 	c.updateTable()

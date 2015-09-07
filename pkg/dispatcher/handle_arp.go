@@ -100,26 +100,34 @@ func (vnet *VNET) handleARPRequest(pkt *Packet) {
 
 	if host == nil {
 		// ignore
-		log.Printf("ARP: DST: %s (unknown)\n", net.IP(arp.DstProtAddress))
+		// log.Printf("ARP: DST: %s (unknown)\n", net.IP(arp.DstProtAddress))
 		// table.Dump()
 		return
 	}
 	if !host.Up {
 		// ignore
-		log.Printf("ARP: DST: %s (down)\n", net.IP(arp.DstProtAddress))
+		// log.Printf("ARP: DST: %s (down)\n", net.IP(arp.DstProtAddress))
 		return
 	}
 
-	log.Printf("ARP: DST: %s (up)\n", net.IP(arp.DstProtAddress))
+	// log.Printf("ARP: DST: %s (up)\n", net.IP(arp.DstProtAddress))
 
 	if arp.ProtAddressSize == 4 {
-		hostProtAddress = host.IPv4.To4()
+		if len(host.IPv4Addrs) == 0 {
+			// ignore
+			return
+		}
+		hostProtAddress = host.IPv4Addrs[0].To4()
 	} else {
-		hostProtAddress = host.IPv6.To16()
+		if len(host.IPv6Addrs) == 0 {
+			// ignore
+			return
+		}
+		hostProtAddress = host.IPv6Addrs[0].To16()
 	}
 	if hostProtAddress == nil {
 		// ignore
-		log.Printf("ARP: DST: %s (unreachable)\n", net.IP(arp.DstProtAddress))
+		// log.Printf("ARP: DST: %s (unreachable)\n", net.IP(arp.DstProtAddress))
 		return
 	}
 
@@ -172,9 +180,9 @@ func (vnet *VNET) insertGateway(pkt *Packet) error {
 		Name:  "gateway",
 		Local: true,
 
-		MAC:  CloneHwAddress(pkt.ARP.SourceHwAddress),
-		IPv4: CloneIP(pkt.ARP.SourceProtAddress),
-		IPv6: net.ParseIP("fd4c:bd56:5cee:8000::1"),
+		MAC:       CloneHwAddress(pkt.ARP.SourceHwAddress),
+		IPv4Addrs: []net.IP{CloneIP(pkt.ARP.SourceProtAddress)},
+		IPv6Addrs: []net.IP{net.ParseIP("fd4c:bd56:5cee:8000::1")},
 
 		Up: true,
 	})
@@ -225,8 +233,8 @@ func (vnet *VNET) insertController(pkt *Packet) error {
 		Name:  "controller",
 		Local: true,
 
-		MAC:  CloneHwAddress(vnet.iface.HardwareAddr()),
-		IPv6: net.ParseIP("fd4c:bd56:5cee:8000::2"),
+		MAC:       CloneHwAddress(vnet.iface.HardwareAddr()),
+		IPv6Addrs: []net.IP{net.ParseIP("fd4c:bd56:5cee:8000::2")},
 
 		Up: true,
 	})

@@ -30,8 +30,8 @@ func (tab *Table) Lookup(
 ) *Route {
 	target := Route{}
 	target.Protocol = proto
-	target.SetInboundSource(srcIP, srcPort)
-	target.SetInboundDestination(dstIP, dstPort)
+	target.SetInboundSource(srcIP.To16(), srcPort)
+	target.SetInboundDestination(dstIP.To16(), dstPort)
 
 	sze := len(tab.routes)
 	idx := sort.Search(sze, func(idx int) bool {

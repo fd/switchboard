@@ -10,6 +10,7 @@ import (
 
 	"github.com/fd/switchboard/pkg/hosts"
 	"github.com/fd/switchboard/pkg/ports"
+	"github.com/fd/switchboard/pkg/protocols"
 	"github.com/fd/switchboard/pkg/routes"
 	"github.com/fd/switchboard/pkg/rules"
 	"github.com/fd/switchboard/pkg/vmnet"
@@ -48,14 +49,26 @@ func Run(ctx context.Context) (*VNET, error) {
 	}
 
 	host, err := vnet.hosts.AddHost(&hosts.Host{
-		IPv4:  net.IPv4(172, 18, 0, 2),
-		Local: true,
-		Up:    true,
+		IPv4Addrs: []net.IP{net.IPv4(172, 18, 0, 2)},
+		Local:     true,
+		Up:        true,
 	})
 	if err != nil {
 		panic(err)
 	}
 	log.Printf("insert %s: %v", host.Name, host)
+
+	rule, err := vnet.rules.AddRule(rules.Rule{
+		Protocol:  protocols.TCP,
+		SrcHostID: host.ID,
+		SrcPort:   80,
+		DstPort:   20559,
+		// DstIP:     net.IPv4(192, 168, 99, 100),
+	})
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("insert: %v", rule)
 
 	iface, err := vmnet.Open("31fbf731-e896-4d03-9bc8-7a6221b91860")
 	if err != nil {
@@ -71,9 +84,10 @@ func Run(ctx context.Context) (*VNET, error) {
 	vnet.chanTCP = vnet.dispatchTCP(ctx)
 	vnet.chanDHCP = vnet.dispatchDHCP(ctx)
 
-	vnet.wg.Add(2)
+	vnet.wg.Add(3)
 	go vnet.runReader(ctx)
 	go vnet.vmnetCloser(ctx)
+	go vnet.gc(ctx)
 
 	log.Printf("UUID: %s", vnet.iface.ID())
 	log.Printf("MAC:  %s", vnet.iface.HardwareAddr())
@@ -85,8 +99,12 @@ func (vnet *VNET) Wait() {
 	vnet.wg.Wait()
 }
 
-func (vnet *VNET) Controller() *hosts.Controller {
+func (vnet *VNET) Hosts() *hosts.Controller {
 	return vnet.hosts
+}
+
+func (vnet *VNET) Rules() *rules.Controller {
+	return vnet.rules
 }
 
 func (vnet *VNET) vmnetCloser(ctx context.Context) {
@@ -97,6 +115,22 @@ func (vnet *VNET) vmnetCloser(ctx context.Context) {
 	err := vnet.iface.Close()
 	if err != nil {
 		log.Printf("error: %s", err)
+	}
+}
+
+func (vnet *VNET) gc(ctx context.Context) {
+	defer vnet.wg.Done()
+
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			vnet.routes.Expire()
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 

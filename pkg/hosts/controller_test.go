@@ -3,10 +3,12 @@ package hosts
 import (
 	"fmt"
 	"net"
+
+	"github.com/fd/switchboard/pkg/ports"
 )
 
 func ExampleIPv4List() {
-	ctrl := NewController()
+	ctrl := NewController(ports.NewMapper())
 	ctrl.AddHost(&Host{IPv4: net.IPv4(172, 18, 0, 3)})
 	ctrl.AddHost(&Host{IPv4: net.IPv4(172, 18, 0, 5)})
 	ctrl.AddHost(&Host{IPv4: net.IPv4(172, 18, 0, 4)})

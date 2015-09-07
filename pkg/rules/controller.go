@@ -33,7 +33,7 @@ func (c *Controller) GetTable() *Table {
 	return c.table
 }
 
-func (c *Controller) AddRule(rule Rule) error {
+func (c *Controller) AddRule(rule Rule) (Rule, error) {
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
@@ -43,30 +43,30 @@ func (c *Controller) AddRule(rule Rule) error {
 		rule.ID = uuid.NewV4().String()
 	}
 	if !rule.Protocol.Valid() {
-		return errors.New("protocol must be set")
+		return Rule{}, errors.New("protocol must be set")
 	}
 	if rule.SrcHostID == "" {
-		return errors.New("source host id must be set")
+		return Rule{}, errors.New("source host id must be set")
 	}
 	if rule.SrcPort == 0 {
-		return errors.New("source port must be set")
+		return Rule{}, errors.New("source port must be set")
 	}
 	if rule.DstPort == 0 {
 		rule.DstPort = rule.SrcPort
 	}
 
 	if r, found := tab.Lookup(rule.Protocol, rule.SrcHostID, rule.SrcPort); found && r.ID != rule.ID {
-		return fmt.Errorf("a rule already exists for %s:%s:%d", rule.SrcHostID, rule.Protocol, rule.SrcPort)
+		return Rule{}, fmt.Errorf("a rule already exists for %s:%s:%d", rule.SrcHostID, rule.Protocol, rule.SrcPort)
 	}
 
 	_, err := c.ports.Allocate(rule.SrcHostID, rule.Protocol, rule.SrcPort)
 	if err != nil {
-		return err
+		return Rule{}, err
 	}
 
 	c.rules[rule.ID] = rule
 	c.updateTable()
-	return nil
+	return rule, nil
 }
 
 func (c *Controller) RemoveRule(id string) error {

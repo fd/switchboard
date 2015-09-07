@@ -45,6 +45,10 @@ func NewPacket(bufSize int) *Packet {
 }
 
 func (pkt *Packet) Release() {
+	if pkt == nil {
+		return
+	}
+
 	if pkt.buf != nil {
 		bufPool.Put(pkt.buf[:cap(pkt.buf)])
 		pkt.buf = nil

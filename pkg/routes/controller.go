@@ -96,7 +96,7 @@ func (c *Controller) AddRoute(route *Route) (*Route, error) {
 		route.Outbound.DstIP, route.Outbound.SrcIP,
 		route.Outbound.DstPort, route.Outbound.SrcPort) != nil {
 		c.ports.Release(route.HostID, route.Protocol, route.Outbound.SrcPort)
-		return nil, errors.New("route already exists")
+		return nil, errors.New("route already exists (reverse)")
 	}
 
 	route.buildFlow()
