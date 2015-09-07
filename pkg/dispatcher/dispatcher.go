@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/fd/switchboard/pkg/hosts"
+	"github.com/fd/switchboard/pkg/ports"
+	"github.com/fd/switchboard/pkg/routes"
 	"github.com/fd/switchboard/pkg/rules"
 	"github.com/fd/switchboard/pkg/vmnet"
 	"github.com/google/gopacket"
@@ -17,10 +19,12 @@ import (
 )
 
 type VNET struct {
-	wg    sync.WaitGroup
-	iface *vmnet.Interface
-	hosts *hosts.Controller
-	rules *rules.Controller
+	wg     sync.WaitGroup
+	iface  *vmnet.Interface
+	ports  *ports.Mapper
+	hosts  *hosts.Controller
+	rules  *rules.Controller
+	routes *routes.Controller
 
 	chanEth  chan<- *Packet
 	chanArp  chan<- *Packet
@@ -34,9 +38,13 @@ type VNET struct {
 func Run(ctx context.Context) (*VNET, error) {
 	rand.Seed(time.Now().Unix())
 
+	p := ports.NewMapper()
+
 	vnet := &VNET{
-		hosts: hosts.NewController(),
-		rules: rules.NewController(),
+		ports:  p,
+		hosts:  hosts.NewController(p),
+		rules:  rules.NewController(p),
+		routes: routes.NewController(p),
 	}
 
 	host, err := vnet.hosts.AddHost(&hosts.Host{

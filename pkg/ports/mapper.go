@@ -22,6 +22,10 @@ type host struct {
 	TCP     []int
 }
 
+func NewMapper() *Mapper {
+	return &Mapper{}
+}
+
 func (m *Mapper) getHost(hostID string) *host {
 	var h *host
 
