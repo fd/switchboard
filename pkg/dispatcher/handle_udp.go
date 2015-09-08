@@ -67,8 +67,12 @@ func (vnet *VNET) handleUDPForward(pkt *Packet, now time.Time) {
 		return
 	}
 
-	if pkt.DstHost == nil || !pkt.DstHost.Up {
-		log.Printf("destination is down: %s", pkt.Eth.DstMAC)
+	if pkt.DstHost == nil {
+		// ignore
+		return
+	}
+	if !pkt.DstHost.Up {
+		log.Printf("destination is down: %s", pkt.DstHost.Name)
 		// ignore
 		return
 	}
@@ -153,7 +157,6 @@ func (vnet *VNET) handleUDPForward(pkt *Packet, now time.Time) {
 	var (
 		eth layers.Ethernet
 		udp layers.UDP
-		buf = gopacket.NewSerializeBuffer()
 	)
 
 	eth = *pkt.Eth
@@ -162,10 +165,6 @@ func (vnet *VNET) handleUDPForward(pkt *Packet, now time.Time) {
 	udp = *pkt.UDP
 	udp.SrcPort = layers.UDPPort(route.Outbound.SrcPort)
 	udp.DstPort = layers.UDPPort(route.Outbound.DstPort)
-
-	opts := gopacket.SerializeOptions{}
-	opts.FixLengths = true
-	opts.ComputeChecksums = true
 
 	if route.Outbound.DstIP.To4() != nil {
 		ip := layers.IPv4{
@@ -178,7 +177,7 @@ func (vnet *VNET) handleUDPForward(pkt *Packet, now time.Time) {
 
 		udp.SetNetworkLayerForChecksum(&ip)
 
-		err = gopacket.SerializeLayers(buf, opts,
+		err = vnet.writePacket(
 			&eth,
 			&ip,
 			&udp,
@@ -198,7 +197,7 @@ func (vnet *VNET) handleUDPForward(pkt *Packet, now time.Time) {
 
 		udp.SetNetworkLayerForChecksum(&ip)
 
-		err = gopacket.SerializeLayers(buf, opts,
+		err = vnet.writePacket(
 			&eth,
 			&ip,
 			&udp,
@@ -207,12 +206,6 @@ func (vnet *VNET) handleUDPForward(pkt *Packet, now time.Time) {
 			log.Printf("UDP/error: %s", err)
 			return
 		}
-	}
-
-	_, err = vnet.iface.WritePacket(buf.Bytes(), 0)
-	if err != nil {
-		log.Printf("UDP/error: %s", err)
-		return
 	}
 
 	route.RoutedPacket(now, len(pkt.buf))

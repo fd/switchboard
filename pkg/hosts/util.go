@@ -7,17 +7,6 @@ import (
 	"net"
 )
 
-func generateMAC() (net.HardwareAddr, error) {
-	addr := make(net.HardwareAddr, 6)
-	_, err := io.ReadFull(rand.Reader, addr[:])
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate MAC: %s", err)
-	}
-
-	addr[0] = (addr[0] | 0x02) &^ 0x01
-	return addr, nil
-}
-
 func generateIPv6(local bool) (net.IP, error) {
 	addr := make(net.IP, 16)
 	_, err := io.ReadFull(rand.Reader, addr[:])

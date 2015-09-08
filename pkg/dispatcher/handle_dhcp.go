@@ -7,11 +7,8 @@ import (
 	"log"
 	"math/rand"
 	"net"
-	"os/exec"
-	"strings"
 	"time"
 
-	"github.com/fd/switchboard/pkg/hosts"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/marpie/godhcp"
@@ -25,6 +22,9 @@ func (vnet *VNET) dispatchDHCP(ctx context.Context) chan<- *Packet {
 	go func() {
 		defer vnet.wg.Done()
 
+		vnet.system.WaitForControllerMAC()
+		vnet.system.WaitForGatewayMAC()
+
 		ticker := time.NewTicker(100 * time.Millisecond)
 		defer ticker.Stop()
 
@@ -35,27 +35,12 @@ func (vnet *VNET) dispatchDHCP(ctx context.Context) chan<- *Packet {
 			case pkt := <-in:
 				vnet.handleDHCP(pkt)
 
-			case <-ticker.C:
-				tab := vnet.hosts.GetTable()
-
-				gateway := tab.LookupByName("gateway")
-				if gateway == nil {
+			case now := <-ticker.C:
+				if vnet.system.ControllerLastDHCPRenew().After(now.Add(-1 * time.Hour)) {
 					continue LOOP
 				}
 
-				controller := tab.LookupByName("controller")
-				if controller == nil {
-					continue
-				}
-				if !controller.Up {
-					continue
-				}
-				if len(controller.IPv4Addrs) > 0 {
-					// TODO renew
-					continue
-				}
-
-				vnet.requestDHCPLease(controller)
+				vnet.requestDHCPLease()
 
 			case <-ctx.Done():
 				return
@@ -73,13 +58,13 @@ func (vnet *VNET) handleDHCP(pkt *Packet) {
 
 	defer pkt.Release()
 
-	tab := vnet.hosts.GetTable()
-	controller := tab.LookupByName("controller")
-	if controller == nil {
-		return
-	}
+	// tab := vnet.hosts.GetTable()
+	// controller := tab.LookupByName("controller")
+	// if controller == nil {
+	// 	return
+	// }
 
-	if !bytes.Equal(controller.MAC, pkt.Eth.DstMAC) {
+	if !bytes.Equal(vnet.system.ControllerMAC(), pkt.Eth.DstMAC) {
 		return
 	}
 
@@ -101,21 +86,21 @@ func (vnet *VNET) handleDHCP(pkt *Packet) {
 	switch opt.Value[0] {
 	case dhcp.DHCPMessageTypeOffer:
 		log.Printf("DHCP/OFFER")
-		vnet.handleDHCPOffer(pkt, msg, controller)
+		vnet.handleDHCPOffer(pkt, msg)
 	case dhcp.DHCPMessageTypeAck:
 		log.Printf("DHCP/ACK")
-		vnet.handleDHCPAck(pkt, msg, controller)
+		vnet.handleDHCPAck(pkt, msg)
 	}
 }
 
-func (vnet *VNET) handleDHCPOffer(pkt *Packet, offer *dhcp.Message, host *hosts.Host) {
+func (vnet *VNET) handleDHCPOffer(pkt *Packet, offer *dhcp.Message) {
 	if offer.YourIPAddress == nil {
 		return
 	}
 
 	msg := &dhcp.Message{}
 
-	msg.ClientMAC = host.MAC
+	msg.ClientMAC = vnet.system.ControllerMAC()
 
 	msg.Type = dhcp.MessageTypeRequest
 	msg.HardwareType = dhcp.MessageHardwareTypeEthernet
@@ -161,12 +146,6 @@ func (vnet *VNET) handleDHCPOffer(pkt *Packet, offer *dhcp.Message, host *hosts.
 		dhcp.OptionCodeEnd: {},
 	}
 
-	buf := gopacket.NewSerializeBuffer()
-
-	opts := gopacket.SerializeOptions{}
-	opts.FixLengths = true
-	opts.ComputeChecksums = true
-
 	ipv4 := &layers.IPv4{
 		SrcIP:    net.IPv4(0, 0, 0, 0),
 		DstIP:    net.IPv4(255, 255, 255, 255),
@@ -182,7 +161,7 @@ func (vnet *VNET) handleDHCPOffer(pkt *Packet, offer *dhcp.Message, host *hosts.
 
 	udp.SetNetworkLayerForChecksum(ipv4)
 
-	err := gopacket.SerializeLayers(buf, opts,
+	err := vnet.writePacket(
 		&layers.Ethernet{
 			SrcMAC:       msg.ClientMAC,
 			DstMAC:       layers.EthernetBroadcast,
@@ -196,88 +175,22 @@ func (vnet *VNET) handleDHCPOffer(pkt *Packet, offer *dhcp.Message, host *hosts.
 		return
 	}
 
-	// opkt := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeEthernet, gopacket.NoCopy)
-	// log.Printf("WRITE: %08x %s\n", 0, opkt.Dump())
-
-	_, err = vnet.iface.WritePacket(buf.Bytes(), 0)
-	if err != nil {
-		log.Printf("DCHP/error: %s", err)
-		return
-	}
-
 	return
 }
 
-func (vnet *VNET) handleDHCPAck(pkt *Packet, ack *dhcp.Message, host *hosts.Host) {
+func (vnet *VNET) handleDHCPAck(pkt *Packet, ack *dhcp.Message) {
 	if ack.YourIPAddress == nil {
 		return
 	}
-	for _, ip := range host.IPv4Addrs {
-		if bytes.Equal(ip, ack.YourIPAddress) {
-			return
-		}
-	}
 
-	vnet.hosts.HostAddIPv4(host.ID, CloneIP(ack.YourIPAddress))
-	vnet.hosts.HostAddIPv4(host.ID, net.IPv4(172, 18, 0, 1))
+	vnet.system.SetControllerIPv4(ack.YourIPAddress)
 	log.Printf("DCHP leased: %s", ack.YourIPAddress)
-
-	// sudo route -n add -net 172.18.0.0/16 192.168.128.7
-	log.Printf("exec: %v", []string{"route", "-n", "add", "-net", "172.18.0.0/16", ack.YourIPAddress.String()})
-	err := exec.Command("sudo", "route", "-n", "add", "-net", "172.18.0.0/16", ack.YourIPAddress.String()).Run()
-	if err != nil {
-		log.Printf("ROUTE/error: %s", err)
-		return
-	}
-
-	var (
-		ifaceName   string
-		coIfaceName string
-	)
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		log.Printf("ROUTE/error: %s", err)
-		return
-	}
-	for _, iface := range ifaces {
-		if !bytes.Equal(iface.HardwareAddr, pkt.Eth.SrcMAC) {
-			continue
-		}
-		output, err := exec.Command("ifconfig", iface.Name).Output()
-		if err != nil {
-			log.Printf("ROUTE/error: %s", err)
-			return
-		}
-		for _, line := range strings.Split(string(output), "\n") {
-			line = strings.TrimSpace(line)
-			if !strings.HasPrefix(line, "member:") {
-				continue
-			}
-			line = strings.TrimPrefix(line, "member:")
-			line = strings.TrimSpace(line)
-			if idx := strings.IndexByte(line, ' '); idx > 0 {
-				line = line[:idx]
-			}
-			ifaceName = iface.Name
-			coIfaceName = line
-			break
-		}
-		break
-	}
-
-	// sudo ifconfig bridge100 -hostfilter en4
-	log.Printf("exec: %v", []string{"ifconfig", ifaceName, "-hostfilter", coIfaceName})
-	err = exec.Command("sudo", "ifconfig", ifaceName, "-hostfilter", coIfaceName).Run()
-	if err != nil {
-		log.Printf("ROUTE/error: %s", err)
-		return
-	}
 }
 
-func (vnet *VNET) requestDHCPLease(host *hosts.Host) {
+func (vnet *VNET) requestDHCPLease() {
 	msg := &dhcp.Message{}
 
-	msg.ClientMAC = host.MAC
+	msg.ClientMAC = vnet.system.ControllerMAC()
 
 	msg.Type = dhcp.MessageTypeRequest
 	msg.HardwareType = dhcp.MessageHardwareTypeEthernet
@@ -299,7 +212,7 @@ func (vnet *VNET) requestDHCPLease(host *hosts.Host) {
 		},
 
 		dhcp.OptionCodeHostName: {
-			Value: []byte(host.Name),
+			Value: []byte("controller"),
 		},
 
 		dhcp.OptionCodeDHCPParameterRequestList: {
@@ -321,12 +234,6 @@ func (vnet *VNET) requestDHCPLease(host *hosts.Host) {
 		dhcp.OptionCodeEnd: {},
 	}
 
-	buf := gopacket.NewSerializeBuffer()
-
-	opts := gopacket.SerializeOptions{}
-	opts.FixLengths = true
-	opts.ComputeChecksums = true
-
 	ipv4 := &layers.IPv4{
 		SrcIP:    net.IPv4(0, 0, 0, 0),
 		DstIP:    net.IPv4(255, 255, 255, 255),
@@ -342,7 +249,7 @@ func (vnet *VNET) requestDHCPLease(host *hosts.Host) {
 
 	udp.SetNetworkLayerForChecksum(ipv4)
 
-	err := gopacket.SerializeLayers(buf, opts,
+	err := vnet.writePacket(
 		&layers.Ethernet{
 			SrcMAC:       msg.ClientMAC,
 			DstMAC:       layers.EthernetBroadcast,
@@ -351,15 +258,6 @@ func (vnet *VNET) requestDHCPLease(host *hosts.Host) {
 		ipv4,
 		udp,
 		gopacket.Payload(writeDHCPMessage(msg)))
-	if err != nil {
-		log.Printf("DCHP/error: %s", err)
-		return
-	}
-
-	// opkt := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeEthernet, gopacket.NoCopy)
-	// log.Printf("WRITE: %08x %s\n", 0, opkt.Dump())
-
-	_, err = vnet.iface.WritePacket(buf.Bytes(), 0)
 	if err != nil {
 		log.Printf("DCHP/error: %s", err)
 		return

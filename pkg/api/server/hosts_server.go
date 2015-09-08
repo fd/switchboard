@@ -21,7 +21,6 @@ func (s *hostsServer) List(context.Context, *protocol.HostListReq) (*protocol.Ho
 		x := &protocol.Host{
 			Id:   h.ID,
 			Name: h.Name,
-			Mac:  h.MAC.String(),
 			Ipv4: make([]string, len(h.IPv4Addrs)),
 			Ipv6: make([]string, len(h.IPv6Addrs)),
 			Up:   h.Up,
@@ -56,7 +55,6 @@ func (s *hostsServer) Add(ctx context.Context, req *protocol.HostAddReq) (*proto
 	x := &protocol.Host{
 		Id:   host.ID,
 		Name: host.Name,
-		Mac:  host.MAC.String(),
 		Ipv4: make([]string, len(host.IPv4Addrs)),
 		Ipv6: make([]string, len(host.IPv6Addrs)),
 		Up:   host.Up,

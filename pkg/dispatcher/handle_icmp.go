@@ -16,6 +16,9 @@ func (vnet *VNET) dispatchICMP(ctx context.Context) chan<- *Packet {
 	go func() {
 		defer vnet.wg.Done()
 
+		vnet.system.WaitForControllerMAC()
+		log.Printf("ICMP: running")
+
 		for {
 			var pkt *Packet
 
@@ -55,12 +58,6 @@ func (vnet *VNET) handleICMPv4(pkt *Packet) {
 }
 
 func (vnet *VNET) handleICMPv4EchoRequest(pkt *Packet) {
-	controller := vnet.hosts.GetTable().LookupByName("controller")
-	if controller == nil {
-		log.Printf("ICMPv4: controller is down\n")
-		return
-	}
-
 	host := vnet.hosts.GetTable().LookupByIPv4(pkt.IPv4.DstIP)
 	if host == nil {
 		log.Printf("ICMPv4: DST: %s (unknown)\n", pkt.IPv4.DstIP)
@@ -76,15 +73,9 @@ func (vnet *VNET) handleICMPv4EchoRequest(pkt *Packet) {
 	}
 	log.Printf("ICMPv4: DST: %s (up)\n", pkt.IPv4.DstIP)
 
-	buf := gopacket.NewSerializeBuffer()
-
-	opts := gopacket.SerializeOptions{}
-	opts.FixLengths = true
-	opts.ComputeChecksums = true
-
-	err := gopacket.SerializeLayers(buf, opts,
+	err := vnet.writePacket(
 		&layers.Ethernet{
-			SrcMAC:       controller.MAC,
+			SrcMAC:       vnet.system.ControllerMAC(),
 			DstMAC:       pkt.Eth.SrcMAC,
 			EthernetType: layers.EthernetTypeIPv4,
 		},
@@ -104,15 +95,6 @@ func (vnet *VNET) handleICMPv4EchoRequest(pkt *Packet) {
 			},
 		},
 		gopacket.Payload(pkt.ICMPv4.Payload))
-	if err != nil {
-		log.Printf("DCHP/error: %s", err)
-		return
-	}
-
-	// opkt := gopacket.NewPacket(buf.Bytes(), layers.LayerTypeEthernet, gopacket.NoCopy)
-	// log.Printf("WRITE: %08x %s\n", 0, opkt.Dump())
-
-	_, err = vnet.iface.WritePacket(buf.Bytes(), 0)
 	if err != nil {
 		log.Printf("DCHP/error: %s", err)
 		return

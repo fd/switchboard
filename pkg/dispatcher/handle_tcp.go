@@ -54,8 +54,12 @@ func (vnet *VNET) handleTCP(pkt *Packet, now time.Time) {
 		return
 	}
 
-	if pkt.DstHost == nil || !pkt.DstHost.Up {
-		log.Printf("destination is down: %s", pkt.Eth.DstMAC)
+	if pkt.DstHost == nil {
+		// ignore
+		return
+	}
+	if !pkt.DstHost.Up {
+		log.Printf("destination is down: %s", pkt.DstHost.Name)
 		// ignore
 		return
 	}
@@ -91,7 +95,38 @@ func (vnet *VNET) handleTCP(pkt *Packet, now time.Time) {
 			return
 		}
 
-		var ruleDstIP = rule.DstIP
+		var (
+			ruleDstIP   = rule.DstIP
+			ruleDstPort = rule.DstPort
+			hostIP      net.IP
+			hostPort    uint16
+		)
+
+		if ruleDstIP != nil {
+			hostIP = dstIP
+			hostPort, err = vnet.ports.Allocate(pkt.DstHost.ID, protocols.TCP, 0)
+			if err != nil {
+				// ignore
+				log.Printf("TCP/error: %s", err)
+				return
+			}
+
+			var r routes.Route
+			r.Protocol = protocols.TCP
+			r.HostID = pkt.DstHost.ID
+			r.SetInboundSource(hostIP, hostPort)
+			r.SetInboundDestination(vnet.system.GatewayIPv4(), vnet.proxy.TCPPort)
+			r.SetOutboundDestination(ruleDstIP, rule.DstPort)
+			route, err = vnet.routes.AddRoute(&r)
+			if err != nil {
+				// ignore
+				log.Printf("TCP/error: %s", err)
+				return
+			}
+
+			ruleDstIP = vnet.system.GatewayIPv4()
+			ruleDstPort = vnet.proxy.TCPPort
+		}
 
 		if ruleDstIP == nil {
 			gateway := vnet.hosts.GetTable().LookupByName("gateway")
@@ -122,7 +157,8 @@ func (vnet *VNET) handleTCP(pkt *Packet, now time.Time) {
 		r.HostID = pkt.DstHost.ID
 		r.SetInboundSource(srcIP, srcPort)
 		r.SetInboundDestination(dstIP, dstPort)
-		r.SetOutboundDestination(ruleDstIP, rule.DstPort)
+		r.SetOutboundSource(hostIP, hostPort)
+		r.SetOutboundDestination(ruleDstIP, ruleDstPort)
 		route, err = vnet.routes.AddRoute(&r)
 		if err != nil {
 			// ignore
@@ -140,19 +176,15 @@ func (vnet *VNET) handleTCP(pkt *Packet, now time.Time) {
 	var (
 		eth layers.Ethernet
 		tcp layers.TCP
-		buf = gopacket.NewSerializeBuffer()
 	)
 
 	eth = *pkt.Eth
-	eth.SrcMAC, eth.DstMAC = eth.DstMAC, eth.SrcMAC
+	eth.SrcMAC = vnet.system.ControllerMAC()
+	eth.DstMAC = vnet.system.GatewayMAC()
 
 	tcp = *pkt.TCP
 	tcp.SrcPort = layers.TCPPort(route.Outbound.SrcPort)
 	tcp.DstPort = layers.TCPPort(route.Outbound.DstPort)
-
-	opts := gopacket.SerializeOptions{}
-	opts.FixLengths = true
-	opts.ComputeChecksums = true
 
 	if route.Outbound.DstIP.To4() != nil {
 		ip := layers.IPv4{
@@ -165,7 +197,7 @@ func (vnet *VNET) handleTCP(pkt *Packet, now time.Time) {
 
 		tcp.SetNetworkLayerForChecksum(&ip)
 
-		err = gopacket.SerializeLayers(buf, opts,
+		err = vnet.writePacket(
 			&eth,
 			&ip,
 			&tcp,
@@ -185,7 +217,7 @@ func (vnet *VNET) handleTCP(pkt *Packet, now time.Time) {
 
 		tcp.SetNetworkLayerForChecksum(&ip)
 
-		err = gopacket.SerializeLayers(buf, opts,
+		err = vnet.writePacket(
 			&eth,
 			&ip,
 			&tcp,
@@ -194,12 +226,6 @@ func (vnet *VNET) handleTCP(pkt *Packet, now time.Time) {
 			log.Printf("TCP/error: %s", err)
 			return
 		}
-	}
-
-	_, err = vnet.iface.WritePacket(buf.Bytes(), 0)
-	if err != nil {
-		log.Printf("TCP/error: %s", err)
-		return
 	}
 
 	route.RoutedPacket(now, len(pkt.buf))

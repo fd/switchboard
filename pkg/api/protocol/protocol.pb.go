@@ -93,10 +93,9 @@ func (*HostRemoveRes) ProtoMessage()    {}
 type Host struct {
 	Id   string   `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
 	Name string   `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
-	Mac  string   `protobuf:"bytes,3,opt,name=mac" json:"mac,omitempty"`
-	Ipv4 []string `protobuf:"bytes,4,rep,name=ipv4" json:"ipv4,omitempty"`
-	Ipv6 []string `protobuf:"bytes,5,rep,name=ipv6" json:"ipv6,omitempty"`
-	Up   bool     `protobuf:"varint,6,opt,name=up" json:"up,omitempty"`
+	Ipv4 []string `protobuf:"bytes,3,rep,name=ipv4" json:"ipv4,omitempty"`
+	Ipv6 []string `protobuf:"bytes,4,rep,name=ipv6" json:"ipv6,omitempty"`
+	Up   bool     `protobuf:"varint,5,opt,name=up" json:"up,omitempty"`
 }
 
 func (m *Host) Reset()         { *m = Host{} }

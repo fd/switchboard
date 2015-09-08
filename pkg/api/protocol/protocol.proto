@@ -29,9 +29,8 @@ message Host {
   string id = 1;
   string name = 2;
 
-  string mac = 3;
-  repeated string ipv4 = 4;
-  repeated string ipv6 = 5;
+  repeated string ipv4 = 3;
+  repeated string ipv6 = 4;
 
-  bool up = 6;
+  bool up = 5;
 }

@@ -49,9 +49,6 @@ func (c *Controller) AddHost(host *Host) (*Host, error) {
 	if host.Name != "" && tab.LookupByName(host.Name) != nil {
 		return nil, errors.New("host name is already in use")
 	}
-	if host.MAC != nil && tab.LookupByMAC(host.MAC) != nil {
-		return nil, errors.New("host MAC is already in use")
-	}
 	for _, ip := range host.IPv4Addrs {
 		if tab.LookupByIPv4(ip) != nil {
 			return nil, fmt.Errorf("host IPv4 %s is already in use", ip)
@@ -77,18 +74,6 @@ func (c *Controller) AddHost(host *Host) (*Host, error) {
 			name := petname.Generate(2, "-")
 			if tab.LookupByName(name) == nil {
 				host.Name = name
-				break
-			}
-		}
-	}
-	if host.MAC == nil {
-		for {
-			mac, err := generateMAC()
-			if err != nil {
-				return nil, err
-			}
-			if tab.LookupByMAC(mac) == nil {
-				host.MAC = mac
 				break
 			}
 		}

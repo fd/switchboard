@@ -7,7 +7,6 @@ type Host struct {
 	Name  string
 	Local bool
 
-	MAC       net.HardwareAddr
 	IPv4Addrs []net.IP
 	IPv6Addrs []net.IP
 

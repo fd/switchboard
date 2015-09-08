@@ -11,7 +11,6 @@ import (
 type Table struct {
 	id   []*Host
 	name []*Host
-	mac  []*Host
 	ipv4 []ipEntry
 	ipv6 []ipEntry
 }
@@ -25,14 +24,12 @@ func buildTable(hosts []*Host) *Table {
 	tab := &Table{
 		id:   make([]*Host, len(hosts)),
 		name: make([]*Host, len(hosts)),
-		mac:  make([]*Host, len(hosts)),
 		ipv4: make([]ipEntry, 0, len(hosts)*2),
 		ipv6: make([]ipEntry, 0, len(hosts)*2),
 	}
 
 	copy(tab.id, hosts)
 	copy(tab.name, hosts)
-	copy(tab.mac, hosts)
 
 	for _, host := range hosts {
 		for _, ip := range host.IPv4Addrs {
@@ -45,7 +42,6 @@ func buildTable(hosts []*Host) *Table {
 
 	sort.Sort(sortedByID(tab.id))
 	sort.Sort(sortedByName(tab.name))
-	sort.Sort(sortedByMAC(tab.mac))
 	sort.Sort(sortedByIPv4(tab.ipv4))
 	sort.Sort(sortedByIPv6(tab.ipv6))
 
@@ -100,27 +96,6 @@ func (t *Table) LookupByName(name string) *Host {
 	}
 
 	if host.Name != name {
-		return nil
-	}
-
-	return host
-}
-
-// LookupByMAC returns a host for a MAC address
-func (t *Table) LookupByMAC(mac net.HardwareAddr) *Host {
-	if len(mac) == 0 {
-		return nil
-	}
-
-	host := lookup(t.mac, func(h *Host) bool {
-		return bytes.Compare(h.MAC, mac) >= 0
-	})
-
-	if host == nil {
-		return nil
-	}
-
-	if !bytes.Equal(host.MAC, mac) {
 		return nil
 	}
 
@@ -222,12 +197,6 @@ type sortedByName []*Host
 func (s sortedByName) Len() int           { return len(s) }
 func (s sortedByName) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s sortedByName) Less(i, j int) bool { return s[i].Name < s[j].Name }
-
-type sortedByMAC []*Host
-
-func (s sortedByMAC) Len() int           { return len(s) }
-func (s sortedByMAC) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s sortedByMAC) Less(i, j int) bool { return bytes.Compare(s[i].MAC, s[j].MAC) < 0 }
 
 type sortedByIPv4 []ipEntry
 
