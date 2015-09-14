@@ -31,3 +31,22 @@ func generateIPv6(local bool) (net.IP, error) {
 
 	return addr, nil
 }
+
+func generateIPv4(local bool) (net.IP, error) {
+	addr := make(net.IP, 4)
+	_, err := io.ReadFull(rand.Reader, addr[:])
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate IPv4: %s", err)
+	}
+
+	addr[0] = 172
+	addr[1] = 18
+	if addr[3] == 0 {
+		addr[3] = addr[3] + 1
+	}
+	if addr[3] == 255 {
+		addr[3] = addr[3] - 1
+	}
+
+	return addr, nil
+}

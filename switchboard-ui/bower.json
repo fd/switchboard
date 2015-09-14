@@ -1,0 +1,22 @@
+{
+  "name": "switchboard-ui",
+  "version": "0.0.0",
+  "homepage": "https://github.com/fd/switchboard",
+  "authors": [
+    "Simon Menke <simon.menke@gmail.com>"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "iron-elements": "PolymerElements/iron-elements#~1.0.3",
+    "paper-elements": "PolymerElements/paper-elements#~1.0.5",
+    "paper-toolbar": "PolymerElements/paper-toolbar#~1.0.4",
+    "polymer": "Polymer/polymer#^1.0.0"
+  }
+}

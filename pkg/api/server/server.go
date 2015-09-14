@@ -41,6 +41,7 @@ func Run(ctx context.Context, vnet *dispatcher.VNET) error {
 
 	grpcServer := grpc.NewServer()
 	protocol.RegisterHostsServer(grpcServer, &hostsServer{hosts: vnet.Hosts()})
+	protocol.RegisterRulesServer(grpcServer, &rulesServer{rules: vnet.Rules()})
 
 	for _, ip := range controller.IPv4Addrs {
 		log.Printf("API: %s:%d (external)", ip.String(), 8080)

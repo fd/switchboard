@@ -112,8 +112,10 @@ func (c *Controller) RemoveHost(id string) error {
 	c.ports.ForgetHost(id)
 
 	host := c.lookupByNameOrID(id)
-	delete(c.hosts, host.ID)
-	c.updateTable()
+	if host != nil {
+		delete(c.hosts, host.ID)
+		c.updateTable()
+	}
 	return nil
 }
 
@@ -136,7 +138,16 @@ func (c *Controller) HostAddIPv4(id string, ip net.IP) error {
 	if ip != nil {
 		host.IPv4Addrs = append(host.IPv4Addrs, ip.To4())
 	} else {
-		// host.IPv4 = nil
+		for {
+			ip, err := generateIPv4(host.Local)
+			if err != nil {
+				return err
+			}
+			if tab.LookupByIPv4(ip) == nil {
+				host.IPv4Addrs = append(host.IPv4Addrs, ip)
+				break
+			}
+		}
 	}
 
 	c.updateTable()

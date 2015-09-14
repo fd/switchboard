@@ -1,0 +1,16 @@
+{
+  "name": "switchboard-ui",
+  "version": "0.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "bower": "^1.5.2",
+    "electron-prebuilt": "^0.32.1",
+    "tsd": "^0.6.4"
+  }
+}

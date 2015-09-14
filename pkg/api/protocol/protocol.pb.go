@@ -15,11 +15,19 @@ It has these top-level messages:
 	HostAddRes
 	HostRemoveReq
 	HostRemoveRes
+	HostSetStatusReq
+	HostSetStatusRes
+	RuleAddReq
+	RuleAddRes
+	RuleClearReq
+	RuleClearRes
 	Host
 */
 package protocol
 
 import proto "github.com/golang/protobuf/proto"
+import fmt "fmt"
+import math "math"
 
 import (
 	context "golang.org/x/net/context"
@@ -28,6 +36,31 @@ import (
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
+var _ = fmt.Errorf
+var _ = math.Inf
+
+type Protocol int32
+
+const (
+	Protocol_UNSET Protocol = 0
+	Protocol_TCP   Protocol = 1
+	Protocol_UDP   Protocol = 2
+)
+
+var Protocol_name = map[int32]string{
+	0: "UNSET",
+	1: "TCP",
+	2: "UDP",
+}
+var Protocol_value = map[string]int32{
+	"UNSET": 0,
+	"TCP":   1,
+	"UDP":   2,
+}
+
+func (x Protocol) String() string {
+	return proto.EnumName(Protocol_name, int32(x))
+}
 
 type HostListReq struct {
 }
@@ -90,6 +123,56 @@ func (m *HostRemoveRes) Reset()         { *m = HostRemoveRes{} }
 func (m *HostRemoveRes) String() string { return proto.CompactTextString(m) }
 func (*HostRemoveRes) ProtoMessage()    {}
 
+type HostSetStatusReq struct {
+	Id string `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
+	Up bool   `protobuf:"varint,2,opt,name=up" json:"up,omitempty"`
+}
+
+func (m *HostSetStatusReq) Reset()         { *m = HostSetStatusReq{} }
+func (m *HostSetStatusReq) String() string { return proto.CompactTextString(m) }
+func (*HostSetStatusReq) ProtoMessage()    {}
+
+type HostSetStatusRes struct {
+}
+
+func (m *HostSetStatusRes) Reset()         { *m = HostSetStatusRes{} }
+func (m *HostSetStatusRes) String() string { return proto.CompactTextString(m) }
+func (*HostSetStatusRes) ProtoMessage()    {}
+
+type RuleAddReq struct {
+	Protocol  Protocol `protobuf:"varint,1,opt,name=protocol,enum=protocol.Protocol" json:"protocol,omitempty"`
+	SrcHostId string   `protobuf:"bytes,2,opt,name=srcHostId" json:"srcHostId,omitempty"`
+	SrcPort   int32    `protobuf:"varint,3,opt,name=srcPort" json:"srcPort,omitempty"`
+	DstIp     string   `protobuf:"bytes,4,opt,name=dstIp" json:"dstIp,omitempty"`
+	DstPort   int32    `protobuf:"varint,5,opt,name=dstPort" json:"dstPort,omitempty"`
+}
+
+func (m *RuleAddReq) Reset()         { *m = RuleAddReq{} }
+func (m *RuleAddReq) String() string { return proto.CompactTextString(m) }
+func (*RuleAddReq) ProtoMessage()    {}
+
+type RuleAddRes struct {
+}
+
+func (m *RuleAddRes) Reset()         { *m = RuleAddRes{} }
+func (m *RuleAddRes) String() string { return proto.CompactTextString(m) }
+func (*RuleAddRes) ProtoMessage()    {}
+
+type RuleClearReq struct {
+	HostId string `protobuf:"bytes,1,opt,name=hostId" json:"hostId,omitempty"`
+}
+
+func (m *RuleClearReq) Reset()         { *m = RuleClearReq{} }
+func (m *RuleClearReq) String() string { return proto.CompactTextString(m) }
+func (*RuleClearReq) ProtoMessage()    {}
+
+type RuleClearRes struct {
+}
+
+func (m *RuleClearRes) Reset()         { *m = RuleClearRes{} }
+func (m *RuleClearRes) String() string { return proto.CompactTextString(m) }
+func (*RuleClearRes) ProtoMessage()    {}
+
 type Host struct {
 	Id   string   `protobuf:"bytes,1,opt,name=id" json:"id,omitempty"`
 	Name string   `protobuf:"bytes,2,opt,name=name" json:"name,omitempty"`
@@ -102,6 +185,10 @@ func (m *Host) Reset()         { *m = Host{} }
 func (m *Host) String() string { return proto.CompactTextString(m) }
 func (*Host) ProtoMessage()    {}
 
+func init() {
+	proto.RegisterEnum("protocol.Protocol", Protocol_name, Protocol_value)
+}
+
 // Reference imports to suppress errors if they are not otherwise used.
 var _ context.Context
 var _ grpc.ClientConn
@@ -112,6 +199,7 @@ type HostsClient interface {
 	List(ctx context.Context, in *HostListReq, opts ...grpc.CallOption) (*HostListRes, error)
 	Add(ctx context.Context, in *HostAddReq, opts ...grpc.CallOption) (*HostAddRes, error)
 	Remove(ctx context.Context, in *HostRemoveReq, opts ...grpc.CallOption) (*HostRemoveRes, error)
+	SetStatus(ctx context.Context, in *HostSetStatusReq, opts ...grpc.CallOption) (*HostSetStatusRes, error)
 }
 
 type hostsClient struct {
@@ -149,12 +237,22 @@ func (c *hostsClient) Remove(ctx context.Context, in *HostRemoveReq, opts ...grp
 	return out, nil
 }
 
+func (c *hostsClient) SetStatus(ctx context.Context, in *HostSetStatusReq, opts ...grpc.CallOption) (*HostSetStatusRes, error) {
+	out := new(HostSetStatusRes)
+	err := grpc.Invoke(ctx, "/protocol.Hosts/SetStatus", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Server API for Hosts service
 
 type HostsServer interface {
 	List(context.Context, *HostListReq) (*HostListRes, error)
 	Add(context.Context, *HostAddReq) (*HostAddRes, error)
 	Remove(context.Context, *HostRemoveReq) (*HostRemoveRes, error)
+	SetStatus(context.Context, *HostSetStatusReq) (*HostSetStatusRes, error)
 }
 
 func RegisterHostsServer(s *grpc.Server, srv HostsServer) {
@@ -197,6 +295,18 @@ func _Hosts_Remove_Handler(srv interface{}, ctx context.Context, codec grpc.Code
 	return out, nil
 }
 
+func _Hosts_SetStatus_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+	in := new(HostSetStatusReq)
+	if err := codec.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(HostsServer).SetStatus(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 var _Hosts_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "protocol.Hosts",
 	HandlerType: (*HostsServer)(nil),
@@ -212,6 +322,94 @@ var _Hosts_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Remove",
 			Handler:    _Hosts_Remove_Handler,
+		},
+		{
+			MethodName: "SetStatus",
+			Handler:    _Hosts_SetStatus_Handler,
+		},
+	},
+	Streams: []grpc.StreamDesc{},
+}
+
+// Client API for Rules service
+
+type RulesClient interface {
+	Add(ctx context.Context, in *RuleAddReq, opts ...grpc.CallOption) (*RuleAddRes, error)
+	Clear(ctx context.Context, in *RuleClearReq, opts ...grpc.CallOption) (*RuleClearRes, error)
+}
+
+type rulesClient struct {
+	cc *grpc.ClientConn
+}
+
+func NewRulesClient(cc *grpc.ClientConn) RulesClient {
+	return &rulesClient{cc}
+}
+
+func (c *rulesClient) Add(ctx context.Context, in *RuleAddReq, opts ...grpc.CallOption) (*RuleAddRes, error) {
+	out := new(RuleAddRes)
+	err := grpc.Invoke(ctx, "/protocol.Rules/Add", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *rulesClient) Clear(ctx context.Context, in *RuleClearReq, opts ...grpc.CallOption) (*RuleClearRes, error) {
+	out := new(RuleClearRes)
+	err := grpc.Invoke(ctx, "/protocol.Rules/Clear", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// Server API for Rules service
+
+type RulesServer interface {
+	Add(context.Context, *RuleAddReq) (*RuleAddRes, error)
+	Clear(context.Context, *RuleClearReq) (*RuleClearRes, error)
+}
+
+func RegisterRulesServer(s *grpc.Server, srv RulesServer) {
+	s.RegisterService(&_Rules_serviceDesc, srv)
+}
+
+func _Rules_Add_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+	in := new(RuleAddReq)
+	if err := codec.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(RulesServer).Add(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func _Rules_Clear_Handler(srv interface{}, ctx context.Context, codec grpc.Codec, buf []byte) (interface{}, error) {
+	in := new(RuleClearReq)
+	if err := codec.Unmarshal(buf, in); err != nil {
+		return nil, err
+	}
+	out, err := srv.(RulesServer).Clear(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+var _Rules_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "protocol.Rules",
+	HandlerType: (*RulesServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Add",
+			Handler:    _Rules_Add_Handler,
+		},
+		{
+			MethodName: "Clear",
+			Handler:    _Rules_Clear_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{},

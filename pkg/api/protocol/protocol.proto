@@ -5,6 +5,12 @@ service Hosts {
   rpc List(HostListReq) returns (HostListRes) {}
   rpc Add(HostAddReq) returns (HostAddRes) {}
   rpc Remove(HostRemoveReq) returns (HostRemoveRes) {}
+  rpc SetStatus(HostSetStatusReq) returns (HostSetStatusRes) {}
+}
+
+service Rules {
+  rpc Add(RuleAddReq) returns (RuleAddRes) {}
+  rpc Clear(RuleClearReq) returns (RuleClearRes) {}
 }
 
 message HostListReq {}
@@ -25,6 +31,26 @@ message HostRemoveReq {
 }
 message HostRemoveRes {}
 
+message HostSetStatusReq {
+  string id = 1;
+  bool up = 2;
+}
+message HostSetStatusRes {}
+
+message RuleAddReq {
+  Protocol protocol = 1;
+  string srcHostId = 2;
+  int32 srcPort = 3;
+  string dstIp = 4;
+  int32 dstPort = 5;
+}
+message RuleAddRes {}
+
+message RuleClearReq {
+  string hostId = 1;
+}
+message RuleClearRes {}
+
 message Host {
   string id = 1;
   string name = 2;
@@ -33,4 +59,10 @@ message Host {
   repeated string ipv6 = 4;
 
   bool up = 5;
+}
+
+enum Protocol {
+  UNSET=0;
+  TCP=1;
+  UDP=2;
 }

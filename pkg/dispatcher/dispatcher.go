@@ -92,8 +92,9 @@ func Run(ctx context.Context) (*VNET, error) {
 		SrcHostID: host.ID,
 		// SrcPort:   80,
 		// DstPort:   20559,
-		SrcPort: 2376,
+		SrcPort: 80,
 		DstIP:   net.IPv4(192, 168, 99, 100),
+		DstPort: 32768,
 		// SrcPort: 80,
 		// DstIP:   net.IPv4(64, 15, 124, 217),
 	})

@@ -1,0 +1,39 @@
+<link rel="import" href="../bower_components/polymer/polymer.html">
+<link rel="import" href="../bower_components/paper-toolbar/paper-toolbar.html">
+
+<dom-module id="sb-toolbar">
+
+  <template>
+    <style>
+      /* CSS rules for your element */
+      :host {
+        -webkit-app-region: drag;
+        -webkit-user-select: none;
+      }
+    </style>
+
+    <paper-toolbar>
+      <paper-icon-button icon="menu" on-tap="menuAction"></paper-icon-button>
+      <div class="title">Switchboard</div>
+      <paper-icon-button icon="more-vert" on-tap="moreAction"></paper-icon-button>
+    </paper-toolbar>
+  </template>
+
+  <script>
+    // element registration
+    Polymer({
+      is: "sb-toolbar",
+
+      // add properties and methods on the element's prototype
+
+      properties: {
+        // declare properties for the element's public API
+        greeting: {
+          type: String,
+          value: "Hello!"
+        }
+      }
+    });
+  </script>
+
+</dom-module>

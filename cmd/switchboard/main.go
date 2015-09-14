@@ -15,6 +15,8 @@ import (
 	"github.com/fd/switchboard/pkg/api/protocol"
 	"github.com/fd/switchboard/pkg/api/server"
 	"github.com/fd/switchboard/pkg/dispatcher"
+	"github.com/fd/switchboard/pkg/dns"
+	"github.com/fd/switchboard/pkg/plugin/driver"
 )
 
 func main() {
@@ -44,6 +46,17 @@ func runServer(ctx context.Context) {
 
 	err = server.Run(ctx, vnet)
 	assert(err)
+
+	// export DOCKER_TLS_VERIFY="1"
+	// export DOCKER_HOST="tcp://192.168.99.100:2376"
+	// export DOCKER_CERT_PATH="/Users/fd/.docker/machine/machines/default"
+	driver.Run(ctx, "docker", map[string]interface{}{
+		"host":       "tcp://192.168.99.100:2376",
+		"verify-tls": true,
+		"cert-path":  "/Users/fd/.docker/machine/machines/default",
+	})
+
+	dns.Run(ctx, vnet)
 
 	defer vnet.Wait()
 }

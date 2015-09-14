@@ -43,13 +43,17 @@ func (s *hostsServer) Add(ctx context.Context, req *protocol.HostAddReq) (*proto
 	host := &hosts.Host{}
 	host.Name = req.Name
 
-	if req.AllocateIPv4 {
-		// TODO: allocate IPv4
-	}
-
 	host, err := s.hosts.AddHost(host)
 	if err != nil {
 		return nil, err
+	}
+
+	if req.AllocateIPv4 {
+		err := s.hosts.HostAddIPv4(host.ID, nil)
+		if err != nil {
+			s.hosts.RemoveHost(host.ID)
+			return nil, err
+		}
 	}
 
 	x := &protocol.Host{
@@ -81,4 +85,13 @@ func (s *hostsServer) Remove(ctx context.Context, req *protocol.HostRemoveReq) (
 	}
 
 	return &protocol.HostRemoveRes{}, nil
+}
+
+func (s *hostsServer) SetStatus(ctx context.Context, req *protocol.HostSetStatusReq) (*protocol.HostSetStatusRes, error) {
+	err := s.hosts.HostSetState(req.Id, req.Up)
+	if err != nil {
+		return nil, err
+	}
+
+	return &protocol.HostSetStatusRes{}, nil
 }
